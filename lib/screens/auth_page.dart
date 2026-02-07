@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/theme.dart';
 import '../services/auth_service.dart';
@@ -20,11 +21,12 @@ class _AuthPageState extends State<AuthPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _pinController = TextEditingController();
-  final _confirmPinController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _obscurePin = true;
-  bool _obscureConfirmPin = true;
+  
+  // PIN type selection: 'numeric' or 'alphanumeric'
+  String _pinType = 'numeric';
 
   final AuthService _authService = AuthService();
 
@@ -34,7 +36,6 @@ class _AuthPageState extends State<AuthPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _pinController.dispose();
-    _confirmPinController.dispose();
     super.dispose();
   }
 
@@ -61,7 +62,6 @@ class _AuthPageState extends State<AuthPage> {
           _passwordController.clear();
           _confirmPasswordController.clear();
           _pinController.clear();
-          _confirmPinController.clear();
         });
       }
     }
@@ -108,15 +108,20 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 32),
                     _buildTitle(),
                     const SizedBox(height: 48),
+                    // Field 1: Email
                     _buildEmailField(),
                     const SizedBox(height: 20),
+                    // Field 2: Password
                     _buildPasswordField(),
                     const SizedBox(height: 20),
+                    // Field 3: Confirm Password (only in Sign Up)
                     if (_isSignUp) _buildConfirmPasswordField(),
                     if (_isSignUp) const SizedBox(height: 20),
-                    if (_isSignUp) _buildPinField(),
+                    // Field 4: Select Security Password Type (only in Sign Up)
+                    if (_isSignUp) _buildSecurityPasswordTypeDropdown(),
                     if (_isSignUp) const SizedBox(height: 20),
-                    if (_isSignUp) _buildConfirmPinField(),
+                    // Field 5: Create Security Password (only in Sign Up)
+                    if (_isSignUp) _buildSecurityPasswordField(),
                     const SizedBox(height: 32),
                     _buildSubmitButton(),
                     const SizedBox(height: 24),
@@ -134,12 +139,19 @@ class _AuthPageState extends State<AuthPage> {
   Widget _buildAppLogo() {
     return Column(
       children: [
-        // Logo Image
         Container(
           width: 120,
           height: 120,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.cyanAzure,
+                AppColors.pinkLavender,
+              ],
+            ),
             boxShadow: [
               BoxShadow(
                 color: AppColors.cyanAzure.withOpacity(0.3),
@@ -148,15 +160,13 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ],
           ),
-          child: ClipOval(
-            child: Image.asset(
-              'assets/images/logo.png',
-              fit: BoxFit.cover,
-            ),
+          child: const Icon(
+            Icons.note_alt_rounded,
+            size: 60,
+            color: Colors.white,
           ),
         ),
         const SizedBox(height: 16),
-        // App Name
         const Text(
           'ZapNotes',
           style: TextStyle(
@@ -256,58 +266,107 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  Widget _buildPinField() {
-    return AuthTextField(
-      controller: _pinController,
-      labelText: 'PIN (Alphanumeric)',
-      prefixIcon: Icons.pin_outlined,
-      obscureText: _obscurePin,
-      suffixIcon: IconButton(
-        icon: Icon(
-          _obscurePin ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          color: AppColors.cyanAzure,
+  Widget _buildSecurityPasswordTypeDropdown() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.darkSurface,
+          width: 1,
         ),
-        onPressed: () {
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: DropdownButtonFormField<String>(
+        value: _pinType,
+        dropdownColor: AppColors.darkSurface,
+        decoration: const InputDecoration(
+          labelText: 'Select Security Password Type',
+          labelStyle: TextStyle(color: AppColors.pinkLavender),
+          prefixIcon: Icon(
+            Icons.security,
+            color: AppColors.pinkLavender,
+          ),
+          border: InputBorder.none,
+        ),
+        style: const TextStyle(color: Colors.white, fontSize: 16),
+        icon: const Icon(Icons.arrow_drop_down, color: AppColors.cyanAzure),
+        items: const [
+          DropdownMenuItem(
+            value: 'numeric',
+            child: Text('PIN (Numeric Only)'),
+          ),
+          DropdownMenuItem(
+            value: 'alphanumeric',
+            child: Text('Alphanumeric Password'),
+          ),
+        ],
+        onChanged: (value) {
           setState(() {
-            _obscurePin = !_obscurePin;
+            _pinType = value!;
+            // Clear PIN field when switching types
+            _pinController.clear();
           });
         },
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter a PIN';
-        }
-        if (!_authService.isValidPin(value)) {
-          return 'PIN must contain letters and numbers (min 4 chars)';
-        }
-        return null;
-      },
     );
   }
 
-  Widget _buildConfirmPinField() {
-    return AuthTextField(
-      controller: _confirmPinController,
-      labelText: 'Confirm PIN',
-      prefixIcon: Icons.pin_outlined,
-      obscureText: _obscureConfirmPin,
-      suffixIcon: IconButton(
-        icon: Icon(
-          _obscureConfirmPin ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          color: AppColors.cyanAzure,
+  Widget _buildSecurityPasswordField() {
+    return TextFormField(
+      controller: _pinController,
+      obscureText: _obscurePin,
+      keyboardType: _pinType == 'numeric' 
+          ? TextInputType.number 
+          : TextInputType.text,
+      inputFormatters: _pinType == 'numeric'
+          ? [FilteringTextInputFormatter.digitsOnly]
+          : null,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: 'Create Security Password',
+        labelStyle: const TextStyle(color: AppColors.pinkLavender),
+        prefixIcon: Icon(
+          _pinType == 'numeric' ? Icons.dialpad : Icons.password,
+          color: AppColors.pinkLavender,
         ),
-        onPressed: () {
-          setState(() {
-            _obscureConfirmPin = !_obscureConfirmPin;
-          });
-        },
+        suffixIcon: IconButton(
+          icon: Icon(
+            _obscurePin ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            color: AppColors.cyanAzure,
+          ),
+          onPressed: () {
+            setState(() {
+              _obscurePin = !_obscurePin;
+            });
+          },
+        ),
+        filled: true,
+        fillColor: AppColors.darkSurface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(
+            color: AppColors.cyanAzure,
+            width: 2,
+          ),
+        ),
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please confirm your PIN';
+          return 'Please enter a security password';
         }
-        if (value != _pinController.text) {
-          return 'PINs do not match';
+        if (_pinType == 'numeric') {
+          if (value.length < 4) {
+            return 'PIN must be at least 4 digits';
+          }
+        } else {
+          if (!_authService.isValidPin(value)) {
+            return 'Password must contain letters and numbers (min 4 chars)';
+          }
         }
         return null;
       },
@@ -351,7 +410,6 @@ class _AuthPageState extends State<AuthPage> {
               _passwordController.clear();
               _confirmPasswordController.clear();
               _pinController.clear();
-              _confirmPinController.clear();
             });
           },
           child: Text(
