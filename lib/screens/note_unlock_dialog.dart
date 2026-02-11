@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/theme.dart';
-import '../services/auth_service.dart';
+import '../services/api_service.dart';
 
 class NoteUnlockDialog extends StatefulWidget {
   const NoteUnlockDialog({Key? key}) : super(key: key);
@@ -11,7 +11,7 @@ class NoteUnlockDialog extends StatefulWidget {
 
 class _NoteUnlockDialogState extends State<NoteUnlockDialog> {
   final TextEditingController _pinController = TextEditingController();
-  final AuthService _authService = AuthService();
+  final ApiService _apiService = ApiService();
   bool _obscurePin = true;
 
   @override
@@ -33,12 +33,12 @@ class _NoteUnlockDialogState extends State<NoteUnlockDialog> {
       return;
     }
 
-    final isValid = await _authService.verifyPin(pin);
+    final result = await _apiService.verifyPin(pin);
     
     if (!mounted) return;
 
-    if (isValid) {
-      Navigator.pop(context, true);
+    if (result['success']) {
+      Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

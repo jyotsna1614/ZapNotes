@@ -4,7 +4,7 @@ import '../utils/theme.dart';
 import '../widgets/gradient_background.dart';
 import '../models/note.dart';
 import '../services/notes_service.dart';
-import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import 'auth_page.dart';
 import 'note_editor_page.dart';
 import 'note_unlock_dialog.dart';
@@ -18,7 +18,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final NotesService _notesService = NotesService();
-  final AuthService _authService = AuthService();
+  final ApiService _apiService = ApiService();
   final TextEditingController _searchController = TextEditingController();
   
   List<Note> _notes = [];
@@ -113,7 +113,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (confirm == true) {
-      await _authService.logout();
+      await _apiService.logout();
       if (!mounted) return;
       
       Navigator.of(context).pushReplacement(
@@ -324,12 +324,12 @@ class _HomePageState extends State<HomePage> {
   Widget _buildNotesList() {
     if (_isGridView) {
       return GridView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.75,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.85,
         ),
         itemCount: _filteredNotes.length,
         itemBuilder: (context, index) {
@@ -339,7 +339,7 @@ class _HomePageState extends State<HomePage> {
       );
     } else {
       return ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         itemCount: _filteredNotes.length,
         itemBuilder: (context, index) {
           final note = _filteredNotes[index];
@@ -486,7 +486,7 @@ class _HomePageState extends State<HomePage> {
     return Card(
       color: AppColors.darkSurface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         side: BorderSide(
           color: note.isLocked
               ? AppColors.pinkLavender.withOpacity(0.5)
@@ -496,9 +496,9 @@ class _HomePageState extends State<HomePage> {
       ),
       child: InkWell(
         onTap: () => _openNote(note),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -510,7 +510,7 @@ class _HomePageState extends State<HomePage> {
                       color: AppColors.pinkLavender,
                       size: 18,
                     ),
-                  if (note.isLocked) const SizedBox(width: 6),
+                  if (note.isLocked) const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       showContent 
@@ -582,7 +582,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Expanded(
                 child: Text(
                   showContent
@@ -595,7 +595,7 @@ class _HomePageState extends State<HomePage> {
                         : AppColors.textSecondary.withOpacity(0.6),
                     fontStyle: showContent ? FontStyle.normal : FontStyle.italic,
                   ),
-                  maxLines: 6,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/theme.dart';
-import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import '../widgets/auth_text_field.dart';
 import '../widgets/gradient_background.dart';
 import 'home_page.dart';
@@ -18,7 +18,7 @@ class _PinVerificationPageState extends State<PinVerificationPage> {
   final _pinController = TextEditingController();
   bool _obscurePin = true;
 
-  final AuthService _authService = AuthService();
+  final ApiService _apiService = ApiService();
 
   @override
   void dispose() {
@@ -28,11 +28,11 @@ class _PinVerificationPageState extends State<PinVerificationPage> {
 
   Future<void> _handlePinVerification() async {
     if (_formKey.currentState!.validate()) {
-      final result = await _authService.verifyPin(_pinController.text);
+      final result = await _apiService.verifyPin(_pinController.text);
 
       if (!mounted) return;
 
-      if (result) {
+      if (result['success']) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomePage()),
         );
@@ -49,7 +49,7 @@ class _PinVerificationPageState extends State<PinVerificationPage> {
   }
 
   Future<void> _handleLogout() async {
-    await _authService.logout();
+    await _apiService.logout();
     if (!mounted) return;
     
     Navigator.of(context).pushReplacement(

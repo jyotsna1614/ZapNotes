@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/theme.dart';
-import '../services/auth_service.dart';
+import '../services/api_service.dart';  // Changed from auth_service.dart
 import '../widgets/auth_text_field.dart';
 import '../widgets/gradient_background.dart';
 import 'home_page.dart';
@@ -16,6 +16,7 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> {
   bool _isSignUp = true;
+  bool _isLoading = false;  // Add loading state
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -25,10 +26,9 @@ class _AuthPageState extends State<AuthPage> {
   bool _obscureConfirmPassword = true;
   bool _obscurePin = true;
   
-  // PIN type selection: 'numeric' or 'alphanumeric'
-  String _pinType = 'numeric';
+  String _pinType = 'pin';  // Changed from 'numeric' to 'pin'
 
-  final AuthService _authService = AuthService();
+  final ApiService _apiService = ApiService();  // Changed from AuthService
 
   @override
   void dispose() {
@@ -41,54 +41,116 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> _handleSignUp() async {
     if (_formKey.currentState!.validate()) {
-      final result = await _authService.signUp(
-        _emailController.text,
-        _passwordController.text,
-        _pinController.text,
-      );
+      // Prevent multiple submissions
+      if (_isLoading) return;
+      
+      setState(() {
+        _isLoading = true;
+      });
 
-      if (!mounted) return;
-
-      if (result) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully!'),
-            backgroundColor: AppColors.pinkLavender,
-          ),
+      try {
+        final result = await _apiService.signUp(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          secretCode: _pinController.text,
+          vaultKeyType: _pinType, // 'numeric' or 'alphanumeric'
         );
 
-        setState(() {
-          _isSignUp = false;
-          _passwordController.clear();
-          _confirmPasswordController.clear();
-          _pinController.clear();
-        });
+        if (!mounted) return;
+
+        if (result['success']) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Account created successfully!'),
+              backgroundColor: AppColors.pinkLavender,
+            ),
+          );
+
+          // Auto switch to sign in
+          setState(() {
+            _isSignUp = false;
+            _passwordController.clear();
+            _confirmPasswordController.clear();
+            _pinController.clear();
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Sign up failed'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
 
   Future<void> _handleSignIn() async {
     if (_formKey.currentState!.validate()) {
-      final result = await _authService.signIn(
-        _emailController.text,
-        _passwordController.text,
-      );
+      // Prevent multiple submissions
+      if (_isLoading) return;
+      
+      setState(() {
+        _isLoading = true;
+      });
 
-      if (!mounted) return;
+      try {
+        final result = await _apiService.signIn(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
 
-      if (result) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid email or password'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (!mounted) return;
+
+        if (result['success']) {
+          // Save login state
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('is_logged_in', true);
+          
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomePage()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Invalid email or password'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
+  }
+
+  // Email validation helper
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  // Password validation helper
+  bool _isValidPassword(String password) {
+    return password.length >= 6 && 
+           RegExp(r'[a-zA-Z]').hasMatch(password) && 
+           RegExp(r'[0-9]').hasMatch(password);
+  }
+
+  // PIN validation helper
+  bool _isValidPin(String pin) {
+    return pin.length >= 4 && 
+           RegExp(r'[a-zA-Z]').hasMatch(pin) && 
+           RegExp(r'[0-9]').hasMatch(pin);
   }
 
   @override
@@ -108,19 +170,14 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 32),
                     _buildTitle(),
                     const SizedBox(height: 48),
-                    // Field 1: Email
                     _buildEmailField(),
                     const SizedBox(height: 20),
-                    // Field 2: Password
                     _buildPasswordField(),
                     const SizedBox(height: 20),
-                    // Field 3: Confirm Password (only in Sign Up)
                     if (_isSignUp) _buildConfirmPasswordField(),
                     if (_isSignUp) const SizedBox(height: 20),
-                    // Field 4: Select Security Password Type (only in Sign Up)
                     if (_isSignUp) _buildSecurityPasswordTypeDropdown(),
                     if (_isSignUp) const SizedBox(height: 20),
-                    // Field 5: Create Security Password (only in Sign Up)
                     if (_isSignUp) _buildSecurityPasswordField(),
                     const SizedBox(height: 32),
                     _buildSubmitButton(),
@@ -200,7 +257,7 @@ class _AuthPageState extends State<AuthPage> {
         if (value == null || value.isEmpty) {
           return 'Please enter your email';
         }
-        if (!_authService.isValidEmail(value)) {
+        if (!_isValidEmail(value)) {
           return 'Please enter a valid email';
         }
         return null;
@@ -229,7 +286,7 @@ class _AuthPageState extends State<AuthPage> {
         if (value == null || value.isEmpty) {
           return 'Please enter a password';
         }
-        if (_isSignUp && !_authService.isValidPassword(value)) {
+        if (_isSignUp && !_isValidPassword(value)) {
           return 'Password must contain letters and numbers (min 6 chars)';
         }
         return null;
@@ -293,18 +350,17 @@ class _AuthPageState extends State<AuthPage> {
         icon: const Icon(Icons.arrow_drop_down, color: AppColors.cyanAzure),
         items: const [
           DropdownMenuItem(
-            value: 'numeric',
+            value: 'pin',
             child: Text('PIN (Numeric Only)'),
           ),
           DropdownMenuItem(
-            value: 'alphanumeric',
+            value: 'phrase',
             child: Text('Alphanumeric Password'),
           ),
         ],
         onChanged: (value) {
           setState(() {
             _pinType = value!;
-            // Clear PIN field when switching types
             _pinController.clear();
           });
         },
@@ -316,18 +372,21 @@ class _AuthPageState extends State<AuthPage> {
     return TextFormField(
       controller: _pinController,
       obscureText: _obscurePin,
-      keyboardType: _pinType == 'numeric' 
+      keyboardType: _pinType == 'pin' 
           ? TextInputType.number 
           : TextInputType.text,
-      inputFormatters: _pinType == 'numeric'
-          ? [FilteringTextInputFormatter.digitsOnly]
+      inputFormatters: _pinType == 'pin'
+          ? [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(6),
+            ]
           : null,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: 'Create Security Password',
         labelStyle: const TextStyle(color: AppColors.pinkLavender),
         prefixIcon: Icon(
-          _pinType == 'numeric' ? Icons.dialpad : Icons.password,
+          _pinType == 'pin' ? Icons.dialpad : Icons.password,
           color: AppColors.pinkLavender,
         ),
         suffixIcon: IconButton(
@@ -359,12 +418,12 @@ class _AuthPageState extends State<AuthPage> {
         if (value == null || value.isEmpty) {
           return 'Please enter a security password';
         }
-        if (_pinType == 'numeric') {
-          if (value.length < 4) {
-            return 'PIN must be at least 4 digits';
+        if (_pinType == 'pin') {
+          if (value.length != 6) {
+            return 'PIN must be exactly 6 digits';
           }
         } else {
-          if (!_authService.isValidPin(value)) {
+          if (!_isValidPin(value)) {
             return 'Password must contain letters and numbers (min 4 chars)';
           }
         }
@@ -378,17 +437,26 @@ class _AuthPageState extends State<AuthPage> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: _isSignUp ? _handleSignUp : _handleSignIn,
+        onPressed: _isLoading ? null : (_isSignUp ? _handleSignUp : _handleSignIn),
         style: ElevatedButton.styleFrom(
           shadowColor: AppColors.cyanAzure.withOpacity(0.5),
         ),
-        child: Text(
-          _isSignUp ? 'Sign Up' : 'Sign In',
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(
+                _isSignUp ? 'Sign Up' : 'Sign In',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
     );
   }
